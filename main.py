@@ -1,6 +1,4 @@
-import findspark
-findspark.init()
-
+from config import CONNECTION_PROPERTIES
 
 import pyspark
 from pyspark.sql import SparkSession
@@ -14,75 +12,70 @@ from pyspark.sql.functions import sum
 spark = SparkSession.builder.appName("Spark-PosgreSQL").getOrCreate()
 
 
-connection_properties = {
-    "url": "jdbc:postgresql://localhost:5432/postgres",
-    "user": "postgres",
-    "password": "asdf",
-    "driver": "org.postgresql.Driver"
-}
-
+# data extraction
 
 df_category = spark.read\
                 .format("jdbc") \
-                .options(**connection_properties) \
+                .options(**CONNECTION_PROPERTIES) \
                 .option("dbtable", "category") \
                 .load()
 
 df_film_category = spark.read\
                 .format("jdbc") \
-                .options(**connection_properties) \
+                .options(**CONNECTION_PROPERTIES) \
                 .option("dbtable", "film_category") \
                 .load()
 
 df_actor = spark.read\
                 .format("jdbc") \
-                .options(**connection_properties) \
+                .options(**CONNECTION_PROPERTIES) \
                 .option("dbtable", "actor") \
                 .load()
 
 df_film_actor = spark.read\
                 .format("jdbc") \
-                .options(**connection_properties) \
+                .options(**CONNECTION_PROPERTIES) \
                 .option("dbtable", "film_actor") \
                 .load()
 
 df_film = spark.read\
                 .format("jdbc") \
-                .options(**connection_properties) \
+                .options(**CONNECTION_PROPERTIES) \
                 .option("dbtable", "film") \
                 .load()
 
 df_inventory = spark.read\
                 .format("jdbc") \
-                .options(**connection_properties) \
+                .options(**CONNECTION_PROPERTIES) \
                 .option("dbtable", "inventory") \
                 .load()
 
 df_rental = spark.read\
                 .format("jdbc") \
-                .options(**connection_properties) \
+                .options(**CONNECTION_PROPERTIES) \
                 .option("dbtable", "rental") \
                 .load()
 
 df_customer = spark.read\
                 .format("jdbc") \
-                .options(**connection_properties) \
+                .options(**CONNECTION_PROPERTIES) \
                 .option("dbtable", "customer") \
                 .load()
 
 df_address = spark.read\
                 .format("jdbc") \
-                .options(**connection_properties) \
+                .options(**CONNECTION_PROPERTIES) \
                 .option("dbtable", "address") \
                 .load()
 
 df_city = spark.read\
                 .format("jdbc") \
-                .options(**connection_properties) \
+                .options(**CONNECTION_PROPERTIES) \
                 .option("dbtable", "city") \
                 .load()
 
 
+# 1. Вывести количество фильмов в каждой категории, отсортировать по убыванию.
 task_1_df_category = df_category.select(col('name'), col('category_id'))
 task_1_df_film_category = df_film_category.select(col('category_id'))
 joined_df = task_1_df_film_category.join(task_1_df_category, task_1_df_film_category.category_id == task_1_df_category.category_id, 'inner')
@@ -91,7 +84,7 @@ task_1_df_counts = joined_df.groupBy('name').count()
 print('1:')
 task_1_df_counts.show()
 
-
+# 2. Вывести 10 актеров, чьи фильмы большего всего арендовали, отсортировать по убыванию.
 joined_df = df_actor \
   .join(df_film_actor, df_actor.actor_id == df_film_actor.actor_id, "inner") \
   .join(df_film, df_film_actor.film_id == df_film.film_id, "inner") \
@@ -108,6 +101,7 @@ print('2:')
 top_actors.show()
 
 
+# 3. Вывести категорию фильмов, на которую потратили больше всего денег.
 joined_df = df_category \
     .join(df_film_category, df_category.category_id == df_film_category.category_id, "inner") \
     .join(df_film, df_film_category.film_id == df_film.film_id, "inner")
@@ -118,12 +112,15 @@ print('3:')
 category_cost_df.show()
 
 
+# 4. Вывести названия фильмов, которых нет в inventory.
 joined_df = df_film.join(df_inventory, df_film.film_id == df_inventory.film_id, 'left_anti')
 films_not_in_inventory_df = joined_df.select(col('title'))
 print('4:')
 films_not_in_inventory_df.show()
 
 
+# 5. Вывести топ 3 актеров, которые больше всего появлялись в фильмах в категории “Children”.
+# Если у нескольких актеров одинаковое кол-во фильмов, вывести всех.
 inner_query_df = df_actor \
   .join(df_film_actor, df_actor.actor_id == df_film_actor.actor_id, "inner") \
   .join(df_film, df_film_actor.film_id == df_film.film_id, "inner") \
@@ -144,6 +141,8 @@ print('5:')
 top_actors.show()
 
 
+# 6. Вывести города с количеством активных и неактивных клиентов (активный — customer.active = 1).
+# Отсортировать по количеству неактивных клиентов по убыванию.
 joined_df = df_customer \
   .join(df_address, df_customer.address_id == df_address.address_id, "inner") \
   .join(df_city, df_address.city_id == df_city.city_id, "inner")
@@ -163,6 +162,9 @@ print('6:')
 city_customer_counts.orderBy(col("disactive").desc()).show()
 
 
+# 7. Вывести категорию фильмов, у которой самое большое кол-во часов суммарной
+# аренды в городах (customer.address_id в этом city), и которые начинаются на букву “a”.
+# Тоже самое сделать для городов в которых есть символ “-”.
 joined_df = df_category \
   .join(df_film_category, df_category.category_id == df_film_category.category_id, "inner") \
   .join(df_film, df_film.film_id == df_film_category.film_id, "inner") \
